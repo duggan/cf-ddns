@@ -1,18 +1,18 @@
 package main
 
 import (
-	"net"
-	"os"
-
+	"crypto/tls"
+	"fmt"
 	"github.com/Sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"net"
 	"net/http"
-	"crypto/tls"
+	"os"
+	"reflect"
 )
 
 var log = logrus.New()
 var Version string
-
 
 func main() {
 	var (
@@ -31,6 +31,7 @@ func main() {
 
 	var ip IPService
 	var dns *CFDNSUpdater
+	var store Storage
 	var err error
 
 	if *ipAddress != "" {
@@ -46,8 +47,9 @@ func main() {
 		ip = &IpifyIPService{HttpClient: httpClient}
 	}
 
-	if dns, err = NewCFDNSUpdater(*cfZoneId, *cfApiKey, *cfEmail, log.WithField("component", "cf-dns-updater")); err != nil {
-		log.Panic(err)
+	stored_ip, err := store.GetIP()
+	if err != nil {
+		fmt.Printf("No IP stored yet\n")
 	}
 
 	res, err := ip.GetExternalIP()
@@ -55,8 +57,28 @@ func main() {
 		log.Panic(err)
 	}
 
-	for _, hostname := range *hostnames {
-		err := dns.UpdateRecordA(hostname, res)
+	log.Debugf("Stored IP: %s, External IP: %s", stored_ip, res)
+
+	if stored_ip != nil {
+		if !reflect.DeepEqual(stored_ip, res) {
+			err = store.PutIP(res)
+			if err != nil {
+				log.Panic(err)
+			}
+
+			if dns, err = NewCFDNSUpdater(*cfZoneId, *cfApiKey, *cfEmail, log.WithField("component", "cf-dns-updater")); err != nil {
+				log.Panic(err)
+			}
+
+			for _, hostname := range *hostnames {
+				err := dns.UpdateRecordA(hostname, res)
+				if err != nil {
+					log.Panic(err)
+				}
+			}
+		}
+	} else {
+		err = store.PutIP(res)
 		if err != nil {
 			log.Panic(err)
 		}
