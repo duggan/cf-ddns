@@ -2,27 +2,26 @@ package main
 
 import (
 	"io/ioutil"
-	"net"
 )
 
 type Store interface {
-	GetIP() (net.IP, error)
-	PutIP(ip net.IP) error
+	GetIP() (string, error)
+	PutIP(ip string) error
 }
 
 type Storage struct{}
 
-var StorePath = "/tmp/cf-ddns.bat"
+var StorePath = "/tmp/cf-ddns-v2.bat"
 
-func (s *Storage) GetIP() (net.IP, error) {
+func (s *Storage) GetIP() (string, error) {
 	dat, err := ioutil.ReadFile(StorePath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return dat, nil
+	return string(dat), nil
 }
 
-func (s *Storage) PutIP(ip net.IP) error {
-	err := ioutil.WriteFile(StorePath, ip, 0644)
+func (s *Storage) PutIP(ip string) error {
+	err := ioutil.WriteFile(StorePath, []byte(ip), 0644)
 	return err
 }
